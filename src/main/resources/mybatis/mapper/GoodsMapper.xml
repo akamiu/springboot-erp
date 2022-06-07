@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.roy.mapper.GoodsMapper">
+    <update id="updateGoods">
+        update goods
+        <set>
+            <if test="name != null">
+                name=#{name},
+            </if>
+            <if test="unit != null">
+                unit=#{unit},
+            </if>
+            <if test="sellingPrice != null">
+                selling_price=#{sellingPrice},
+            </if>
+            <if test="buyingPrice!=null">
+                buying_price=#{buyingPrice},
+            </if>
+            <if test="categoryId!=null">
+                category_id=#{categoryId},
+            </if>
+            <if test="maxStock!=null">
+                maxStock=#{maxStock},
+            </if>
+            <if test="minStock!=null">
+                minStock=#{minStock},
+            </if>
+            created_date = #{createdDate}
+        </set>
+        <where>
+            id=#{id}
+        </where>
+    </update>
+    <select id="selectPage" resultType="com.roy.entities.Goods">
+        select goods.*,goods_category.name category from goods,goods_category
+        where
+        goods.category_id=goods_category.id
+        <if test="categoryId!=-1">
+            and category_id=#{categoryId}
+        </if>
+        <if test="name!=''">
+            and goods.name like "%"#{name}"%"
+        </if>
+        ORDER BY goods.id
+        <if test="pageSize!=0">
+            limit #{pageNum},#{pageSize}
+        </if>
+    </select>
+</mapper>

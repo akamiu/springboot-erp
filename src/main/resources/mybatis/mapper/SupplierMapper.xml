@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.roy.mapper.SupplierMapper">
+    <update id="updateSupplier">
+        update supplier
+        <set>
+            <if test="name != null">
+                name=#{name},
+            </if>
+            <if test="type != null">
+                type=#{type},
+            </if>
+            <if test="ownerId != null">
+                owner_id=#{ownerId},
+            </if>
+            <if test="contactName!=null">
+                contact_name=#{contactName},
+            </if>
+            <if test="contactPhone!=null">
+                contact_phone=#{contactPhone},
+            </if>
+            <if test="address!=null">
+                address=#{address},
+            </if>
+            <if test="debt!=null">
+                debt=#{debt},
+            </if>
+            created_date = #{createdDate}
+        </set>
+        <where>
+            id=#{id}
+        </where>
+
+    </update>
+</mapper>

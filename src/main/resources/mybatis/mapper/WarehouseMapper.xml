@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.roy.mapper.WarehouseMapper">
+    <update id="updateWarehouse">
+        update warehouse
+        <set>
+            <if test="name != null">
+                name=#{name},
+            </if>
+            <if test="address != null">
+                address=#{address},
+            </if>
+            <if test="ownerId != null">
+                owner_id=#{ownerId},
+            </if>
+            <if test="msg!=null">
+                msg=#{msg},
+            </if>
+            created_date = #{createdDate}
+        </set>
+        <where>
+            id=#{id}
+        </where>
+
+    </update>
+</mapper>

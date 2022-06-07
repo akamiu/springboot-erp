@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.roy.mapper.GoodsStockMapper">
+    <select id="selectPage" resultType="com.roy.entities.GoodsStock">
+        select goods_stock.warehouse_id,goods_stock.goods_id,
+        warehouse.name warehouse, goods.name goodsName,unit,
+        goods_category.name category, num
+        from goods_stock,goods,warehouse,goods_category
+        where
+        goods_stock.warehouse_id = warehouse.id
+        and
+        goods_stock.goods_id = goods.id
+        and
+        goods.category_id=goods_category.id
+        <if test="warehouseId!=-1">
+            and warehouse_id=#{warehouseId}
+        </if>
+        ORDER BY goods.id
+        <if test="pageSize!=0">
+            limit #{pageNum},#{pageSize}
+        </if>
+    </select>
+</mapper>
