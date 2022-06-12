@@ -166,6 +166,8 @@ CREATE TABLE `goods_stock`
     FOREIGN KEY (warehouse_id) REFERENCES warehouse (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8 COMMENT ='商品库存信息表';
+ALTER TABLE goods_stock
+    ADD CHECK (num >= 0);
 ######################################################################
 
 DROP TABLE IF EXISTS `stock_in`;
@@ -255,35 +257,185 @@ CREATE TRIGGER updateStockInGoods
     AFTER INSERT
     ON stockin_goods
     FOR EACH ROW
-    UPDATE goods_stock
-    SET num=num + NEW.goods_num
-    WHERE NEW.goods_id = goods_stock.goods_id
-      AND NEW.warehouse_id = goods_stock.warehouse_id;
+BEGIN
+    DECLARE is_exist INTEGER DEFAULT 0;
+    SET is_exist = (select count(*)
+                    from goods_stock
+                    WHERE NEW.goods_id = goods_stock.goods_id
+                      AND NEW.warehouse_id = goods_stock.warehouse_id);
+    IF is_exist = 0 THEN
+        INSERT INTO goods_stock(goods_id, warehouse_id, num)
+        values (NEW.goods_id, NEW.warehouse_id, NEW.goods_num);
+    ELSE
+        UPDATE goods_stock
+        SET num=num + NEW.goods_num
+        WHERE NEW.goods_id = goods_stock.goods_id
+          AND NEW.warehouse_id = goods_stock.warehouse_id;
+    END IF;
+END;
 # 商品销售出库触发器
+DROP TRIGGER IF EXISTS updateStockOutGoods;
 CREATE TRIGGER updateStockOutGoods
     AFTER INSERT
     ON stockout_goods
     FOR EACH ROW
-    UPDATE goods_stock
-    SET num=num - NEW.goods_num
-    WHERE NEW.goods_id = goods_stock.goods_id
-      AND NEW.warehouse_id = goods_stock.warehouse_id;
-
+BEGIN
+    DECLARE is_exist INTEGER DEFAULT 0;
+    SET is_exist = (select count(*)
+                    from goods_stock
+                    WHERE NEW.goods_id = goods_stock.goods_id
+                      AND NEW.warehouse_id = goods_stock.warehouse_id);
+    IF is_exist = 0 THEN
+        INSERT INTO goods_stock(goods_id, warehouse_id, num)
+        values (NEW.goods_id, NEW.warehouse_id, NEW.goods_num);
+    ELSE
+        UPDATE goods_stock
+        SET num=num - NEW.goods_num
+        WHERE NEW.goods_id = goods_stock.goods_id
+          AND NEW.warehouse_id = goods_stock.warehouse_id;
+    END IF;
+END;
 # 商品转仓触发器
+DROP TRIGGER IF EXISTS transferGoods;
 CREATE TRIGGER transferGoods
     AFTER INSERT
     ON transfer_goods
     FOR EACH ROW
-begin
+BEGIN
+    DECLARE is_exist INTEGER DEFAULT 0;
+    SET is_exist = (select count(*)
+                    from goods_stock
+                    WHERE NEW.goods_id = goods_stock.goods_id
+                      AND NEW.to_id = goods_stock.warehouse_id);
+    IF is_exist = 0 THEN
+        INSERT INTO goods_stock(goods_id, warehouse_id, num)
+        values (NEW.goods_id, NEW.to_id, NEW.goods_num);
+    ELSE
+        UPDATE goods_stock
+        SET num=num + NEW.goods_num
+        WHERE NEW.to_id = goods_stock.warehouse_id
+          and NEW.goods_id = goods_stock.goods_id;
+    END IF;
     UPDATE goods_stock
     SET num=num - NEW.goods_num
     WHERE NEW.from_id = goods_stock.warehouse_id
       and NEW.goods_id = goods_stock.goods_id;
-    UPDATE goods_stock
-    SET num=num + NEW.goods_num
-    WHERE NEW.to_id = goods_stock.warehouse_id
-      and NEW.goods_id = goods_stock.goods_id;
-end
+END;
+
+# 视图
+DROP VIEW IF EXISTS statistics_in;
+CREATE VIEW statistics_in (id, name, unit, in_num, stock_date) AS
+(
+SELECT goods.id,
+       goods.name,
+       goods.unit,
+       stockin_goods.goods_num in_num,
+       stock_date
+FROM goods,
+     stockin_goods,
+     stock_in
+WHERE goods.id = stockin_goods.goods_id
+  AND stock_in.id = stockin_goods.order_id
+    );
+DROP VIEW IF EXISTS statistics_out;
+CREATE VIEW statistics_out (id, name, unit, out_num, delivery_date) AS
+(
+SELECT goods.id,
+       goods.name,
+       goods.unit,
+       stockout_goods.goods_num out_num,
+       delivery_date
+FROM goods,
+     stockout_goods,
+     stock_out
+WHERE goods.id = stockout_goods.goods_id
+  AND stock_out.id = stockout_goods.order_id
+    );
+
+
+# SELECT X.id, X.`name`, in_sum, out_sum
+# FROM (SELECT id, name, SUM(out_num) out_sum FROM statistics_out GROUP BY id) AS X,
+#      (SELECT id, name, SUM(in_num) in_sum FROM statistics_in GROUP BY id) AS Y
+# WHERE X.id = Y.id
+#   AND (in_sum IS NOT NULL OR out_sum IS NOT NULL)
+# 创建存储过程统计指定时间段内各种商品的进货数量和销售数量；
+######################## Common Table Expression (or CTE)
+DROP PROCEDURE IF EXISTS statistics_goods;
+CREATE PROCEDURE statistics_goods(IN start_date datetime, IN end_date datetime)
+BEGIN
+    -- 创建进货临时表
+    DROP TEMPORARY TABLE IF EXISTS in_goods1;
+    CREATE TEMPORARY TABLE in_goods1 AS
+        (SELECT id, name, SUM(in_num) in_sum
+         FROM statistics_in
+         WHERE stock_date >= start_date
+           AND stock_date <= end_date
+         GROUP BY id);
+    DROP TEMPORARY TABLE IF EXISTS in_goods2;
+    CREATE TEMPORARY TABLE in_goods2 AS
+        (SELECT id, name, SUM(in_num) in_sum
+         FROM statistics_in
+         WHERE stock_date >= start_date
+           AND stock_date <= end_date
+         GROUP BY id);
+    DROP TEMPORARY TABLE IF EXISTS out_goods1;
+    CREATE TEMPORARY TABLE out_goods1 AS
+        (SELECT id, name, SUM(out_num) out_sum
+         FROM statistics_out
+         WHERE statistics_out.delivery_date >= start_date
+           AND statistics_out.delivery_date <= end_date
+         GROUP BY id);
+    DROP TEMPORARY TABLE IF EXISTS out_goods2;
+    CREATE TEMPORARY TABLE out_goods2 AS
+        (SELECT id, name, SUM(out_num) out_sum
+         FROM statistics_out
+         WHERE statistics_out.delivery_date >= start_date
+           AND statistics_out.delivery_date <= end_date
+         GROUP BY id);
+    SELECT in_goods1.id, in_goods1.name, in_sum, out_sum
+    from in_goods1
+             left join out_goods1 on in_goods1.id = out_goods1.id
+    union
+    SELECT out_goods2.id, out_goods2.name, in_sum, out_sum
+    from in_goods2
+             right join out_goods2 on in_goods2.id = out_goods2.id;
+    DROP TEMPORARY TABLE in_goods1,out_goods1,in_goods2,out_goods2;
+END
+
+
+# DROP PROCEDURE IF EXISTS statistics_goods;
+# CREATE PROCEDURE statistics_goods(IN start_date datetime, IN end_date datetime)
+# BEGIN
+#     -- 创建进货临时表
+#     CREATE TEMPORARY TABLE in_goods AS
+#         (SELECT id, name, SUM(in_num) in_sum
+#          FROM statistics_in
+#          WHERE stock_date >= start_date
+#            AND stock_date <= end_date
+#          GROUP BY id);
+#     CREATE TEMPORARY TABLE out_goods AS
+#         (SELECT id, name, SUM(out_num) out_sum
+#          FROM statistics_out
+#          WHERE statistics_out.delivery_date >= start_date
+#            AND statistics_out.delivery_date <= end_date
+#          GROUP BY id);
+#     CREATE TEMPORARY TABLE all_goods AS
+#     (select *
+#      from in_goods
+#               left join out_goods on in_goods.id = out_goods.id)
+#     union
+#     (select *
+#      from in_goods
+#               right join out_goods on in_goods.id = out_goods.id
+#     );
+#     SELECT id, name, in_sum, out_sum
+#     FROM all_goods;
+#     DROP TEMPORARY TABLE in_goods,out_goods,all_goods;
+# END
+
+
+
+
 
 
 

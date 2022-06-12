@@ -26,13 +26,13 @@ public class TransferGoodsController {
     public Result addTransfer(@RequestBody TransferGoods t) {
         for (TransferGoodsVO vo : t.getGoodsList()) {
             TransferGoods transfer = new TransferGoods(null, t.getFromId(), t.getToId(), null, vo.getGoodsId(), vo.getGoodsNum(), t.getMsg());
-             if (goodsStockMapper.isExistStock(transfer.getGoodsId(), transfer.getToId()) == 0) {
-                GoodsStock goodsStock = new GoodsStock();
-                goodsStock.setGoodsId(transfer.getGoodsId());
-                goodsStock.setWarehouseId(transfer.getToId());
-                goodsStock.setNum(0);
-                goodsStockMapper.insertGoodsStock(goodsStock);
-            }
+//             if (goodsStockMapper.isExistStock(transfer.getGoodsId(), transfer.getToId()) == 0) {
+//                GoodsStock goodsStock = new GoodsStock();
+//                goodsStock.setGoodsId(transfer.getGoodsId());
+//                goodsStock.setWarehouseId(transfer.getToId());
+//                goodsStock.setNum(0);
+//                goodsStockMapper.insertGoodsStock(goodsStock);
+//            }
             transferGoodsMapper.insert(transfer);
         }
         return Result.success();
